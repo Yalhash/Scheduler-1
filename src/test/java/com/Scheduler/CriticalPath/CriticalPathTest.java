@@ -76,4 +76,12 @@ public class CriticalPathTest {
         critPath.createGraphVis();
     }
 
+    @Test public void testRemoveNode() {
+        logInfo("testRemoveNode");
+        ITask taskToRemove = this.tasks.get(0);
+        ITask source = critPath.getSourceTask();
+        this.critPath.removeNoDepNode(source, taskToRemove);
+        this.critPath.createGraphVis();
+    }
+
 }

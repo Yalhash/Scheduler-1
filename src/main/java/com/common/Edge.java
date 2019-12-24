@@ -1,6 +1,7 @@
 package com.common;
 
 import org.jgrapht.graph.DefaultEdge;
+import static com.common.Utils.logInfo;
 
 public class Edge extends DefaultEdge {
 

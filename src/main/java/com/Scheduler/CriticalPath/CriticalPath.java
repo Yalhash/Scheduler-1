@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-
+import com.common.Edge;
 import com.common.ITask;
 import com.common.Task;
 
@@ -30,7 +30,7 @@ public class CriticalPath {
 
     private List<ITask> tasks;
     // The underlying graph structure of the class
-    private Graph<ITask, DefaultEdge> graph = this.newGraph();
+    private Graph<ITask, Edge> graph = this.newGraph();
 
 
     /** Primary Constructor */
@@ -76,7 +76,7 @@ public class CriticalPath {
                 }
             };
 
-            GraphExporter<ITask, DefaultEdge> exporter = new DOTExporter<>(vertexIDProvider, labelIDProvider, null);
+            GraphExporter<ITask, Edge> exporter = new DOTExporter<>(vertexIDProvider, labelIDProvider, null);
             Writer writer = new StringWriter();
             try {
                 exporter.exportGraph(this.graph, writer);
@@ -91,8 +91,8 @@ public class CriticalPath {
      * that are of type {@link ITask}
      * @return Graph<ITask, DefaultEdge>
      */
-    private Graph<ITask, DefaultEdge> newGraph() {
-        return new SimpleDirectedWeightedGraph<>(DefaultEdge.class);
+    private Graph<ITask, Edge> newGraph() {
+        return new SimpleDirectedWeightedGraph<>(Edge.class);
 
     }
 
@@ -126,7 +126,7 @@ public class CriticalPath {
 
         logInfo("adding edge :: " + task1.getDescription() + "->" + task2.getDescription());
         // create the edge and assign the weight to be the first task's time
-        DefaultEdge edge = this.graph.addEdge(task1, task2);
+        Edge edge = this.graph.addEdge(task1, task2);
         this.graph.setEdgeWeight(edge, task1.getTime());
         return true;
     }
@@ -204,13 +204,24 @@ public class CriticalPath {
         return noDeps;
     }
 
-    private void removeNoDepNode(ITask source, ITask node) {
+    protected void removeNoDepNode(ITask source, ITask node) {
         // NOTE: it is assumed that node has no dependencies and thus
         // has only one incoming edge: from source
-        Set<DefaultEdge> outgoingEdges = this.graph.outgoingEdgesOf(node);
-        for (DefaultEdge edge: outgoingEdges) {
-            this.graph.removeEdge(edge);
+        Set<Edge> outgoingEdges = this.graph.outgoingEdgesOf(node);
+        ITask target;
+        List<Edge> toRemove = new ArrayList<>();
+        for (Edge edge: outgoingEdges) {
+            // target = (ITask)edge.getTargetPublic();
+            target = this.graph.getEdgeTarget(edge);
+            logInfo(target.getDescription());
+            if (target != null) {
+                toRemove.add(edge);
+                this.addEdge(source, target);
+            }
         }
+
+        for (Edge edge: toRemove) this.graph.removeEdge(edge);
+        this.graph.removeVertex(node);
     }
 
 
@@ -294,6 +305,14 @@ public class CriticalPath {
         }
     }
 
+    /**
+     * Returns the source vertex of the graph. This method is for testing purposes.
+     * @return {@link ITask}
+     */
+    protected ITask getSourceTask() {
+        return this.graph.vertexSet().stream().filter(task -> task.isSource()).findFirst().orElse(null);
+    }
+
     private void connectSource(List<ITask> noDeps, ITask source) {
         logInfo("connect source");
         for (ITask task: noDeps) {
@@ -316,7 +335,7 @@ public class CriticalPath {
      * @param pathGraph
      * @return {@link Graph<ITask, DefaultEdge>}
      */
-    private Graph<ITask, DefaultEdge> findCriticalPath(Graph<ITask, DefaultEdge> graph, Graph<ITask, DefaultEdge> pathGraph) {
+    private Graph<ITask, Edge> findCriticalPath(Graph<ITask, DefaultEdge> graph, Graph<ITask, Edge> pathGraph) {
         if (graph.vertexSet().isEmpty()) {
             return pathGraph;
         }
@@ -325,7 +344,7 @@ public class CriticalPath {
         return this.newGraph();
     }
 
-    private void DFS(Graph<ITask, DefaultEdge> graph, ITask start) {
+    private void DFS(Graph<ITask, Edge> graph, ITask start) {
         Iterator<ITask> iterator = new DepthFirstIterator<>(graph, start);
         ITask next = start;
         while (iterator.hasNext()) {
