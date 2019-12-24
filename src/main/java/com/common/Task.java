@@ -12,6 +12,7 @@ public class Task implements ITask {
     private UUID taskID;
     private float _time = 0.0f;
     private boolean sink = false;
+    private boolean source = false;
 
     // private constructors
 
@@ -61,10 +62,19 @@ public class Task implements ITask {
         return new Task(time, description, deps);
     }
 
-    public static Task sinkTask() {
+    /**
+     * This method sets a node as either a sink (true) or source (false).
+     * @param sink
+     * @return {@link Task}
+     */
+    public static Task sinkTask(boolean sink) {
         Task task = new Task(0.0f);
-        task.setSink();
-        task.modifyDescription("sink");
+        if (sink) {
+            task.setSink(true);
+        } else {
+            task.setSink(false);
+        }
+        task.modifyDescription(sink ? "sink" : "source");
         return task;
     }
 
@@ -116,12 +126,21 @@ public class Task implements ITask {
     }
 
     @Override
-    public void setSink() {
-        this.sink = true;
+    public void setSink(boolean sink) {
+        if (sink) {
+            this.sink = true;
+        } else {
+            this.source = true;
+        }
     }
 
     @Override
     public boolean isSink() {
         return this.sink;
+    }
+
+    @Override
+    public boolean isSource() {
+        return this.source;
     }
 }

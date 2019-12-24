@@ -45,6 +45,7 @@ public interface ITask {
     /** Let's the user modify a task's time to complete */
     public void modifyTime(float time);
 
-    public void setSink();
+    public void setSink(boolean sink);
     public boolean isSink();
+    public boolean isSource();
 }

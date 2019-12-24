@@ -124,7 +124,10 @@ public class CriticalPath {
      */
     private boolean addEdge(ITask task1, ITask task2) {
 
-        this.graph.addEdge(task1, task2);
+        logInfo("adding edge :: " + task1.getDescription() + "->" + task2.getDescription());
+        // create the edge and assign the weight to be the first task's time
+        DefaultEdge edge = this.graph.addEdge(task1, task2);
+        this.graph.setEdgeWeight(edge, task1.getTime());
         return true;
     }
 
@@ -194,11 +197,20 @@ public class CriticalPath {
     private List<ITask> getTasksNoDeps(Set<ITask> tasks) {
         List<ITask> noDeps = new ArrayList<>();
         for (ITask task : tasks) {
-            if (!task.isSink() && task.getDependencies().isEmpty()) {
+            if (!task.isSink() && !task.isSource() && task.getDependencies().isEmpty()) {
                 noDeps.add(task);
             }
         }
         return noDeps;
+    }
+
+    private void removeNoDepNode(ITask source, ITask node) {
+        // NOTE: it is assumed that node has no dependencies and thus
+        // has only one incoming edge: from source
+        Set<DefaultEdge> outgoingEdges = this.graph.outgoingEdgesOf(node);
+        for (DefaultEdge edge: outgoingEdges) {
+            this.graph.removeEdge(edge);
+        }
     }
 
 
@@ -229,8 +241,12 @@ public class CriticalPath {
         }
 
         // add sink task
-        ITask sink = Task.sinkTask();
+        ITask sink = Task.sinkTask(true);
         this.addVertex(sink);
+
+        // add source task
+        ITask source = Task.sinkTask(false);
+        this.addVertex(source);
 
 
         // set the edges in order of degree
@@ -254,8 +270,10 @@ public class CriticalPath {
         }
 
         List<ITask> noDeps = this.getTasksNoDeps(this.graph.vertexSet());
+        this.connectSource(noDeps, source);
         this.recurseAndConnectSink(noDeps, sink);
         logInfo("Graph so far :: " + this.graph);
+        this.DFS(this.graph, source);
 
     }
 
@@ -273,6 +291,13 @@ public class CriticalPath {
                 next = iterator.next();
             }
             this.addEdge(next, sink);
+        }
+    }
+
+    private void connectSource(List<ITask> noDeps, ITask source) {
+        logInfo("connect source");
+        for (ITask task: noDeps) {
+            this.addEdge(source, task);
         }
     }
 
@@ -298,6 +323,16 @@ public class CriticalPath {
         // get all source tasks
         List<ITask> sources = this.getTasksNoDeps(graph.vertexSet());
         return this.newGraph();
+    }
+
+    private void DFS(Graph<ITask, DefaultEdge> graph, ITask start) {
+        Iterator<ITask> iterator = new DepthFirstIterator<>(graph, start);
+        ITask next = start;
+        while (iterator.hasNext()) {
+            next = iterator.next();
+            logInfo("DFS :: " + next.getDescription());
+        }
+        logInfo("DFS end :: " + next.getDescription());
     }
 
 }
