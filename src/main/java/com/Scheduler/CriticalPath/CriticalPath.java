@@ -1,5 +1,6 @@
 package com.Scheduler.CriticalPath;
 
+import java.awt.Graphics;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.util.ArrayList;
@@ -8,8 +9,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 
 import com.common.ITask;
@@ -29,8 +28,8 @@ import static com.common.Utils.logInfo;
 
 public class CriticalPath {
 
-    private static final Logger LOGGER = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
     private List<ITask> tasks;
+    // The underlying graph structure of the class
     private Graph<ITask, DefaultEdge> graph = this.newGraph();
 
 
@@ -41,7 +40,7 @@ public class CriticalPath {
     }
 
     /**
-     * Seconddary Constructor that takes a {@link List<ITask>}.
+     * Secondary Constructor that takes a {@link List<ITask>}.
      * @param tasks
      */
     private CriticalPath(List<ITask> tasks) {
@@ -49,33 +48,42 @@ public class CriticalPath {
         this.fromArrayofTasks(tasks);
     }
 
+    /**
+     * Static factory that creates a Critical Path graph.
+     * @param tasks
+     * @return {@link CriticalPath}
+     */
     public static CriticalPath ofTasks(List<ITask> tasks) {
         return new CriticalPath(tasks);
     }
 
 
+    /** Creates a .dot language representation of the current graph */
     protected void createGraphVis() {
-        ComponentNameProvider<ITask> vertexIDProvider = new ComponentNameProvider<ITask>() {
-            @Override
-            public String getName(ITask component) {
-                return component.getDescription();
-            }
-        };
+        if (this.graph != null) {
 
-        ComponentNameProvider<ITask> labelIDProvider = new ComponentNameProvider<ITask>() {
-            @Override
-            public String getName(ITask component) {
-                return component.getDescription();
-            }
-        };
+            ComponentNameProvider<ITask> vertexIDProvider = new ComponentNameProvider<ITask>() {
+                @Override
+                public String getName(ITask component) {
+                    return component.getDescription();
+                }
+            };
 
-        GraphExporter<ITask, DefaultEdge> exporter = new DOTExporter<>(vertexIDProvider, labelIDProvider, null);
-        Writer writer = new StringWriter();
-        try {
-            exporter.exportGraph(this.graph, writer);
-            logInfo("\n" + writer.toString());
-        } catch (ExportException e) {
-            logInfo("ExportException :: " + e.toString());
+            ComponentNameProvider<ITask> labelIDProvider = new ComponentNameProvider<ITask>() {
+                @Override
+                public String getName(ITask component) {
+                    return component.getDescription();
+                }
+            };
+
+            GraphExporter<ITask, DefaultEdge> exporter = new DOTExporter<>(vertexIDProvider, labelIDProvider, null);
+            Writer writer = new StringWriter();
+            try {
+                exporter.exportGraph(this.graph, writer);
+                logInfo("\n" + writer.toString());
+            } catch (ExportException e) {
+                logInfo("ExportException :: " + e.toString());
+            }
         }
     }
     /**
@@ -121,6 +129,13 @@ public class CriticalPath {
     }
 
 
+    /**
+     * This method recursively calculates the "degree" of a task.
+     * The degree is defined as the largest "degree" of one of its subtasks, plus one.
+     * If a task has no dependencies, its "degree" is 0.
+     * @param task
+     * @return {@link Integer}
+     */
     protected int calcDegree(ITask task) {
         logInfo("Master Task calcDegree :: " + task.getTaskID().toString());
 
@@ -134,10 +149,14 @@ public class CriticalPath {
 
         Task taskOfId;
         logInfo("graph vertexSet :: " + graph.toString());
+        // go through all dependencies of current task
         for (UUID dep: deps) {
-            LOGGER.log(Level.INFO, "calcDegree :: " + dep.toString());
+            logInfo("calcDegree :: " + dep.toString());
+            // return the task that matches the id (dep)
             taskOfId = (Task) this.graph.vertexSet().stream().filter(t -> t.getTaskID().equals(dep)).findFirst().get();
+            // find the degree of that task
             int currDegree = calcDegree(taskOfId);
+            // set the max if it's larger
             if (currDegree > maxDegree) {
                 maxDegree = currDegree;
             }
@@ -145,6 +164,7 @@ public class CriticalPath {
         }
 
         logInfo("degree of " + task.getTaskID().toString() + "::: " +String.valueOf(maxDegree + 1));
+        // by definition:
         return maxDegree + 1;
     }
 
@@ -162,10 +182,6 @@ public class CriticalPath {
             }
         }
         return maxDegree;
-    }
-
-
-    private void printGraph() {
     }
 
     /**
@@ -243,6 +259,12 @@ public class CriticalPath {
 
     }
 
+    /**
+     * This method performs a DFS on a list of tasks with no dependencies.
+     * Upon reaching a task at the end with no further connections, it connects a sink vertex to it.
+     * @param noDeps
+     * @param sink
+     */
     private void recurseAndConnectSink(List<ITask> noDeps, ITask sink) {
         for (ITask task : noDeps) {
             Iterator<ITask> iterator = new DepthFirstIterator<>(this.graph, task);
@@ -254,11 +276,21 @@ public class CriticalPath {
         }
     }
 
+    /**
+     * Public method that lets the user reset the graph with a new set of tasks.
+     * @param tasks
+     */
     public void fromArrayofTasks(ITask[] tasks) {
         this.tasks = Arrays.asList(tasks);
         this.fromArrayofTasks(tasks);
     }
 
+    /**
+     * TODO implement criticalPath algorithm
+     * @param graph
+     * @param pathGraph
+     * @return {@link Graph<ITask, DefaultEdge>}
+     */
     private Graph<ITask, DefaultEdge> findCriticalPath(Graph<ITask, DefaultEdge> graph, Graph<ITask, DefaultEdge> pathGraph) {
         if (graph.vertexSet().isEmpty()) {
             return pathGraph;
