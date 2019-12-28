@@ -5,6 +5,7 @@ import java.io.StringWriter;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -23,6 +24,7 @@ import org.jgrapht.io.DOTExporter;
 import org.jgrapht.io.ExportException;
 import org.jgrapht.io.GraphExporter;
 import org.jgrapht.traverse.DepthFirstIterator;
+import org.jgrapht.alg.shortestpath.DijkstraShortestPath;
 
 import static com.common.Utils.logInfo;
 
@@ -55,6 +57,13 @@ public class CriticalPath {
      */
     public static CriticalPath ofTasks(List<ITask> tasks) {
         return new CriticalPath(tasks);
+    }
+
+    /**
+     * @return the graph
+     */
+    public Graph<ITask, Edge> getGraph() {
+        return graph;
     }
 
 
@@ -204,15 +213,15 @@ public class CriticalPath {
         return noDeps;
     }
 
-    protected void removeNoDepNode(ITask source, ITask node) {
+    protected void removeNoDepNode(Graph<ITask, Edge> graph, ITask source, ITask node) {
         // NOTE: it is assumed that node has no dependencies and thus
         // has only one incoming edge: from source
-        Set<Edge> outgoingEdges = this.graph.outgoingEdgesOf(node);
+        Set<Edge> outgoingEdges = graph.outgoingEdgesOf(node);
         ITask target;
         List<Edge> toRemove = new ArrayList<>();
         for (Edge edge: outgoingEdges) {
             // target = (ITask)edge.getTargetPublic();
-            target = this.graph.getEdgeTarget(edge);
+            target = graph.getEdgeTarget(edge);
             logInfo(target.getDescription());
             if (target != null) {
                 toRemove.add(edge);
@@ -283,7 +292,9 @@ public class CriticalPath {
         List<ITask> noDeps = this.getTasksNoDeps(this.graph.vertexSet());
         this.connectSource(noDeps, source);
         this.recurseAndConnectSink(noDeps, sink);
-        logInfo("Graph so far :: " + this.graph);
+        // logInfo("Graph so far :: " + this.graph);
+        this.rescaleWeight(this.graph);
+        // for (ITask start : noDeps) this.DFS(this.graph, start);
         this.DFS(this.graph, source);
 
     }
@@ -309,8 +320,8 @@ public class CriticalPath {
      * Returns the source vertex of the graph. This method is for testing purposes.
      * @return {@link ITask}
      */
-    protected ITask getSourceTask() {
-        return this.graph.vertexSet().stream().filter(task -> task.isSource()).findFirst().orElse(null);
+    protected ITask getSourceTask(Graph<ITask, Edge> graph, boolean source) {
+        return graph.vertexSet().stream().filter(task -> source ? task.isSource(): task.isSink()).findFirst().orElse(null);
     }
 
     private void connectSource(List<ITask> noDeps, ITask source) {
@@ -330,26 +341,103 @@ public class CriticalPath {
     }
 
     /**
+     * Removes all edges that directly connect source and sink (source -> sink)
+     * @param graph
+     */
+    private void removeSourceSinkEdges(Graph<ITask, Edge> graph) {
+        ITask source = this.getSourceTask(graph, true);
+        ITask sink = this.getSourceTask(graph, false);
+        Set<Edge> edges = graph.getAllEdges(source, sink);
+
+        for(Edge edge : edges) graph.removeEdge(edge);
+    }
+
+    public List<ITask> getSchedule() {
+        Graph<ITask, Edge> graph = this.graph;
+        List<ITask> schedule = new ArrayList<>();
+        ITask source = this.getSourceTask(graph, true);
+        while (graph.vertexSet().size() > 2) {
+            // check if second is not sink
+            List<ITask> criticalPath = this.findCriticalPath(graph);
+            // The task to remove is always the second as the first is the source node
+            // the length of this should always be at least 2 (source, sink)
+            ITask toRemove = criticalPath.get(1);
+            if (!toRemove.isSink() && !toRemove.isSource()) {
+                this.removeNoDepNode(graph, source, toRemove);
+                schedule.add(toRemove);
+            }
+            this.removeSourceSinkEdges(graph);
+        }
+
+        return schedule;
+    }
+
+    /**
      * TODO implement criticalPath algorithm
      * @param graph
      * @param pathGraph
      * @return {@link Graph<ITask, DefaultEdge>}
      */
-    private Graph<ITask, Edge> findCriticalPath(Graph<ITask, DefaultEdge> graph, Graph<ITask, Edge> pathGraph) {
-        if (graph.vertexSet().isEmpty()) {
-            return pathGraph;
-        }
+    protected List<ITask> findCriticalPath(Graph<ITask, Edge> graph) {
         // get all source tasks
-        List<ITask> sources = this.getTasksNoDeps(graph.vertexSet());
-        return this.newGraph();
+        // List<ITask> sources = this.getTasksNoDeps(graph.vertexSet());
+        logInfo("findCriticalPath :: ");
+        DijkstraShortestPath<ITask, Edge> shortestPath = new DijkstraShortestPath(graph);
+        ITask source = this.getSourceTask(graph, true);
+        ITask sink = this.getSourceTask(graph, false);
+        List<ITask> shortestPathGraph = shortestPath.getPath(source, sink).getVertexList();
+        for (ITask task : shortestPathGraph) logInfo("findCriticalPath :: task vertex :: " + task.getDescription());
+        return shortestPathGraph;
+    }
+
+    /**
+     * Returns the max edge weight for purpose of rescaling the edge weights.
+     * @return float
+     */
+    protected double getMaximumEdgeWeight(Graph<ITask, Edge> graph) {
+        Set<Edge> edges = graph.edgeSet();
+        List<Double> times = new ArrayList<>();
+        for (Edge edge: edges) times.add(graph.getEdgeWeight(edge));
+        return Collections.max(times);
+    }
+
+    /**
+     * This method resacles a graph such taht the edge weights can be used
+     * with a shortest path algorithm to find the criticalPath (or longest path)
+     *
+     * Jgrapht does not allow for negative edges in their graph definitions as the
+     * presence of a negative edge cycle means there can be no shortest path (the shortest path will effectively be -INF).
+     * Instead, I find the largest edge weight, temporarily invert all edge weights, then add the largest edge weight to
+     * every weight. This way the largest edge weight is transformed to 0 and is set as the base weight for which the other
+     * weights are based on. So now, the largest edge weight is now the smallest (and positive!), so a shortest path algorithm
+     * (like Djiktra's) can be used to find the longest (critical) path of the graph.
+     * @param graph
+     */
+    protected void rescaleWeight(Graph<ITask, Edge> graph) {
+        float maxEdgeWeight = (float) this.getMaximumEdgeWeight(graph);
+        logInfo("rescaleWeight :: maxEdgeWeight :: " + maxEdgeWeight);
+        Set<Edge> edges = graph.edgeSet();
+        for (Edge edge: graph.edgeSet()) {
+            float tmp = (float) graph.getEdgeWeight(edge);
+            float negate = -tmp;
+            float newWeight = maxEdgeWeight + negate;
+            graph.setEdgeWeight(edge, newWeight);
+        }
     }
 
     private void DFS(Graph<ITask, Edge> graph, ITask start) {
         Iterator<ITask> iterator = new DepthFirstIterator<>(graph, start);
+        ITask prev = null;
         ITask next = start;
         while (iterator.hasNext()) {
+            prev = next;
             next = iterator.next();
             logInfo("DFS :: " + next.getDescription());
+            logInfo("DFS :: prev -> next :: " + prev.getDescription() + "->" + next.getDescription());
+            if (prev != null && !prev.isSink() && prev != next) {
+                Edge edge = graph.getEdge(prev, next);
+                logInfo("DFS :: Edge weight :: " + graph.getEdgeWeight(edge));
+            }
         }
         logInfo("DFS end :: " + next.getDescription());
     }

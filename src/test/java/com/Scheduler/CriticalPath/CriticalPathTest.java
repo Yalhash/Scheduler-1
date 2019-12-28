@@ -8,9 +8,11 @@ import java.util.List;
 import java.util.UUID;
 
 import com.Scheduler.CriticalPath.CriticalPath;
+import com.common.Edge;
 import com.common.ITask;
 import com.common.Task;
 
+import org.jgrapht.Graph;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -79,9 +81,34 @@ public class CriticalPathTest {
     @Test public void testRemoveNode() {
         logInfo("testRemoveNode");
         ITask taskToRemove = this.tasks.get(0);
-        ITask source = critPath.getSourceTask();
-        this.critPath.removeNoDepNode(source, taskToRemove);
+        Graph<ITask, Edge> graph = critPath.getGraph();
+        ITask source = critPath.getSourceTask(graph, true);
+        this.critPath.removeNoDepNode(graph, source, taskToRemove);
         this.critPath.createGraphVis();
+    }
+
+    @Test public void testGetMaxEdgeWeight() {
+        Graph<ITask, Edge> graph = critPath.getGraph();
+        double maxEdgeWeight = critPath.getMaximumEdgeWeight(graph);
+        assertEquals(6, maxEdgeWeight, 0.1d);
+    }
+
+    @Test public void testFindCriticalPath() {
+        logInfo("testFindCriticalPath");
+        Graph<ITask, Edge> graph = critPath.getGraph();
+        ITask source = critPath.getSourceTask(graph, true);
+        ITask sink = critPath.getSourceTask(graph, false);
+        List<ITask> shortest = this.critPath.findCriticalPath(graph);
+        List<ITask> expected = new ArrayList<>();
+        expected.add(source);
+        expected.add(tasks.get(2));
+        expected.add(sink);
+    }
+
+    @Test public void testFindSchedule() {
+        logInfo("testFindSchedule :: ");
+        List<ITask> tasks = critPath.getSchedule();
+        for (ITask task: tasks) logInfo("testFindSchedule :: task :: " + task.getDescription());
     }
 
 }
