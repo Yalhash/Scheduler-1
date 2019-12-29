@@ -10,12 +10,15 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.common.Edge;
 import com.common.ITask;
 import com.common.Task;
 
 import org.jgrapht.Graph;
+import org.jgrapht.GraphPath;
 import org.jgrapht.alg.util.Pair;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.SimpleDirectedWeightedGraph;
@@ -24,6 +27,7 @@ import org.jgrapht.io.DOTExporter;
 import org.jgrapht.io.ExportException;
 import org.jgrapht.io.GraphExporter;
 import org.jgrapht.traverse.DepthFirstIterator;
+import org.jgrapht.alg.shortestpath.AllDirectedPaths;
 import org.jgrapht.alg.shortestpath.DijkstraShortestPath;
 
 import static com.common.Utils.logInfo;
@@ -293,7 +297,7 @@ public class CriticalPath {
         this.connectSource(noDeps, source);
         this.recurseAndConnectSink(noDeps, sink);
         // logInfo("Graph so far :: " + this.graph);
-        this.rescaleWeight(this.graph);
+        // this.rescaleWeight(this.graph);
         // for (ITask start : noDeps) this.DFS(this.graph, start);
         this.DFS(this.graph, source);
 
@@ -358,7 +362,7 @@ public class CriticalPath {
         ITask source = this.getSourceTask(graph, true);
         while (graph.vertexSet().size() > 2) {
             // check if second is not sink
-            List<ITask> criticalPath = this.findCriticalPath(graph);
+            List<ITask> criticalPath = this.findCriticalPathTMP(graph);
             // The task to remove is always the second as the first is the source node
             // the length of this should always be at least 2 (source, sink)
             ITask toRemove = criticalPath.get(1);
@@ -370,6 +374,30 @@ public class CriticalPath {
         }
 
         return schedule;
+    }
+
+    /**
+     * Temporary solution to finding the criticalPath of a DAG as the first attempt
+     * is currently not working.
+     * This method uses jgrapht's {@link AllDirectedPaths} class to get all paths from
+     * source to sink and then sorts the result.
+     * @param graph
+     * @return
+     */
+    protected List<ITask> findCriticalPathTMP(Graph<ITask, Edge> graph) {
+        ITask source = this.getSourceTask(graph, true);
+        ITask sink = this.getSourceTask(graph, false);
+        AllDirectedPaths<ITask, Edge> allPaths = new AllDirectedPaths<>(graph);
+        List<GraphPath<ITask, Edge>> path = allPaths.getAllPaths(source, sink, true, null)
+                                            .stream()
+                                            .sorted((GraphPath<ITask, Edge> g1, GraphPath<ITask, Edge> g2) -> new Double(g2.getWeight()).compareTo(g1.getWeight())).collect(Collectors.toList());
+        path.forEach(p -> {
+            logInfo("PATH :: " + p.getWeight());
+            List<ITask> pp = p.getVertexList();
+            pp.forEach(task -> logInfo("TASK :: " + task.getDescription()));
+        });
+        GraphPath<ITask, Edge> p = path.get(0);
+        return p.getVertexList();
     }
 
     /**
