@@ -2,13 +2,7 @@ package com.Scheduler.CriticalPath;
 
 import java.io.StringWriter;
 import java.io.Writer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import com.common.Edge;
@@ -401,7 +395,61 @@ public class CriticalPath {
         return p.getVertexList();
     }
 
+
+    /**
+     * This method recursively finds the longest path while keeping track of all previous longest paths it has visited
+     * @param graph
+     * @param source
+     * @param sink
+     * @param nodeMap
+     * @return
+     */
+    private Pair<Double, List<ITask>> maximumPathDP(Graph<ITask, Edge> graph, ITask source, ITask sink, HashMap<ITask, Pair<Double, List<ITask>>> nodeMap) {
+        if (source.equals(sink)) {
+            logInfo("maximumPathDP :: base case");
+            List<ITask> baseAnswer = new ArrayList<>();
+            baseAnswer.add(source);
+            return new Pair<Double,List<ITask>>(0.0, baseAnswer);
+        }
+        Set<Edge> incoming = graph.incomingEdgesOf(sink);
+
+        double maxDist = 0;
+        List<ITask> currPath = null;
+        Pair<Double, List<ITask>> tmp;
+        for (Edge edge : incoming) {
+            logInfo("maximumPathDP :: Analyzing edge :: " + graph.getEdgeSource(edge).getDescription() + " -> " + graph.getEdgeTarget(edge).getDescription());
+            ITask intermediateSource = graph.getEdgeSource(edge);
+            if (nodeMap.containsKey(intermediateSource)){
+                tmp = nodeMap.get(intermediateSource);
+            }else{
+                tmp = maximumPathDP(graph, source, intermediateSource, nodeMap);
+                nodeMap.put(intermediateSource, tmp);
+            }
+            if (graph.getEdgeWeight(edge) == 0.0) {
+                currPath = tmp.getSecond();
+            } else if (tmp.getFirst() + graph.getEdgeWeight(edge) > maxDist) {
+                maxDist = tmp.getFirst() + graph.getEdgeWeight(edge);
+                currPath = tmp.getSecond();
+            }
+        }
+
+        currPath.add(sink);
+        Pair<Double, List<ITask>> pair = new Pair<Double,List<ITask>>(maxDist, currPath);
+        return pair;
+
+    }
+
+
+    /**
+     * This method calls a recursive method that finds the longest path
+     */
     protected Pair<Double, List<ITask>> maximumPathDP(Graph<ITask, Edge> graph, ITask source, ITask sink) {
+        HashMap<ITask, Pair<Double, List<ITask>>> nodeMap = new HashMap<>();
+        return maximumPathDP(graph, source, sink, nodeMap);
+    }
+
+
+    protected Pair<Double, List<ITask>> maximumPathDPOLD(Graph<ITask, Edge> graph, ITask source, ITask sink) {
         if (source.equals(sink)) {
             logInfo("maximumPathDP :: base case");
             List<ITask> asdf = new ArrayList<>();
@@ -455,7 +503,7 @@ public class CriticalPath {
 
     /**
      * Returns the max edge weight for purpose of rescaling the edge weights.
-     * @return float
+     * @return double
      */
     protected double getMaximumEdgeWeight(Graph<ITask, Edge> graph) {
         Set<Edge> edges = graph.edgeSet();
@@ -465,10 +513,10 @@ public class CriticalPath {
     }
 
     /**
-     * This method resacles a graph such taht the edge weights can be used
+     * This method resacles a graph such that the edge weights can be used
      * with a shortest path algorithm to find the criticalPath (or longest path)
      *
-     * Jgrapht does not allow for negative edges in their graph definitions as the
+     * graph does not allow for negative edges in their graph definitions as the
      * presence of a negative edge cycle means there can be no shortest path (the shortest path will effectively be -INF).
      * Instead, I find the largest edge weight, temporarily invert all edge weights, then add the largest edge weight to
      * every weight. This way the largest edge weight is transformed to 0 and is set as the base weight for which the other
