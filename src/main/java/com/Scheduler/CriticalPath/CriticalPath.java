@@ -1,6 +1,5 @@
 package com.Scheduler.CriticalPath;
 
-import java.awt.Graphics;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.util.ArrayList;
@@ -11,7 +10,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import com.common.Edge;
 import com.common.ITask;
@@ -20,7 +18,6 @@ import com.common.Task;
 import org.jgrapht.Graph;
 import org.jgrapht.GraphPath;
 import org.jgrapht.alg.util.Pair;
-import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.SimpleDirectedWeightedGraph;
 import org.jgrapht.io.ComponentNameProvider;
 import org.jgrapht.io.DOTExporter;
@@ -72,8 +69,8 @@ public class CriticalPath {
 
 
     /** Creates a .dot language representation of the current graph */
-    protected void createGraphVis() {
-        if (this.graph != null) {
+    protected void createGraphVis(Graph<ITask, Edge> graph) {
+        if (graph != null) {
 
             ComponentNameProvider<ITask> vertexIDProvider = new ComponentNameProvider<ITask>() {
                 @Override
@@ -92,7 +89,7 @@ public class CriticalPath {
             GraphExporter<ITask, Edge> exporter = new DOTExporter<>(vertexIDProvider, labelIDProvider, null);
             Writer writer = new StringWriter();
             try {
-                exporter.exportGraph(this.graph, writer);
+                exporter.exportGraph(graph, writer);
                 logInfo("\n" + writer.toString());
             } catch (ExportException e) {
                 logInfo("ExportException :: " + e.toString());
@@ -360,11 +357,15 @@ public class CriticalPath {
         Graph<ITask, Edge> graph = this.graph;
         List<ITask> schedule = new ArrayList<>();
         ITask source = this.getSourceTask(graph, true);
+        ITask sink = this.getSourceTask(graph, false);
         while (graph.vertexSet().size() > 2) {
             // check if second is not sink
-            List<ITask> criticalPath = this.findCriticalPathTMP(graph);
+            // List<ITask> criticalPath = this.findCriticalPathTMP(graph);
+            Pair<Double, List<ITask>> pair = this.maximumPathDP(graph, source, sink);
+            List<ITask> criticalPath = pair.getSecond();
             // The task to remove is always the second as the first is the source node
             // the length of this should always be at least 2 (source, sink)
+            for (ITask task : criticalPath) logInfo("getSchedule :: list :: " + task.getDescription());
             ITask toRemove = criticalPath.get(1);
             if (!toRemove.isSink() && !toRemove.isSource()) {
                 this.removeNoDepNode(graph, source, toRemove);
@@ -398,6 +399,40 @@ public class CriticalPath {
         });
         GraphPath<ITask, Edge> p = path.get(0);
         return p.getVertexList();
+    }
+
+    protected Pair<Double, List<ITask>> maximumPathDP(Graph<ITask, Edge> graph, ITask source, ITask sink) {
+        if (source.equals(sink)) {
+            logInfo("maximumPathDP :: base case");
+            List<ITask> asdf = new ArrayList<>();
+            asdf.add(source);
+            return new Pair<Double,List<ITask>>(0.0, asdf);
+        }
+        Set<Edge> incoming = graph.incomingEdgesOf(sink);
+
+        double maxDist = 0;
+        List<ITask> currPath = null;
+        Pair<Double, List<ITask>> tmp;
+        for (Edge edge : incoming) {
+            logInfo("maximumPathDP :: Analyzing edge :: " + graph.getEdgeSource(edge).getDescription() + " -> " + graph.getEdgeTarget(edge).getDescription());
+            ITask intermediateSource = graph.getEdgeSource(edge);
+            tmp = maximumPathDP(graph, source, intermediateSource);
+
+            if (graph.getEdgeWeight(edge) == 0.0) {
+                currPath = tmp.getSecond();
+            } else if (tmp.getFirst() + graph.getEdgeWeight(edge) > maxDist) {
+                maxDist = tmp.getFirst() + graph.getEdgeWeight(edge);
+                currPath = tmp.getSecond();
+            }
+        }
+
+        currPath.add(sink);
+
+
+
+        Pair<Double, List<ITask>> pair = new Pair<Double,List<ITask>>(maxDist, currPath);
+        return pair;
+
     }
 
     /**

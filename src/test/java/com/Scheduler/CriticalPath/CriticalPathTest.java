@@ -75,7 +75,8 @@ public class CriticalPathTest {
         logInfo("fourthDegree test");
         int fourthDegree = critPath.calcDegree(tasks.get(3));
         assertEquals(2, fourthDegree);
-        critPath.createGraphVis();
+        Graph<ITask, Edge> graph = critPath.getGraph();
+        critPath.createGraphVis(graph);
     }
 
     @Test public void testRemoveNode() {
@@ -84,7 +85,7 @@ public class CriticalPathTest {
         Graph<ITask, Edge> graph = critPath.getGraph();
         ITask source = critPath.getSourceTask(graph, true);
         this.critPath.removeNoDepNode(graph, source, taskToRemove);
-        this.critPath.createGraphVis();
+        this.critPath.createGraphVis(graph);
     }
 
     @Test public void testGetMaxEdgeWeight() {
@@ -108,6 +109,8 @@ public class CriticalPathTest {
     @Test public void testFindSchedule() {
         logInfo("testFindSchedule :: ");
         List<ITask> tasks = critPath.getSchedule();
+        CriticalPath newCritPath = CriticalPath.ofTasks(tasks);
+        newCritPath.createGraphVis(newCritPath.getGraph());
         for (ITask task: tasks) logInfo("testFindSchedule :: task :: " + task.getDescription());
     }
 
