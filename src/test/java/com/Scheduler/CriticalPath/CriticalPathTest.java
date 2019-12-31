@@ -114,4 +114,34 @@ public class CriticalPathTest {
         for (ITask task: tasks) logInfo("testFindSchedule :: task :: " + task.getDescription());
     }
 
+    @Test public void testMakeMultiprocessorSchedule() {
+        logInfo("testMakeMultiprocessorSchedule :: ");
+        List<ITask> tasks = critPath.getSchedule();
+        List< List <ITask>> answer = critPath.makeMultiprocessorSchedule(tasks, 2);
+        List< List <ITask>> expected = new ArrayList<>();
+        expected.add(new ArrayList<>());
+        expected.add(new ArrayList<>());
+        expected.get(0).add(tasks.get(0));
+        expected.get(0).add(tasks.get(1));
+        expected.get(0).add(tasks.get(2));
+        expected.get(1).add(tasks.get(3));
+        expected.get(1).add(Task.idleTask(2f));
+        for (int i = 0; i < answer.size(); i++){
+            logInfo("testMakeMultiprocessorSchedule :: answer :: processor " + i);
+            for (int j = 0; j < answer.get(i).size(); j++){
+                logInfo("testMakeMultiprocessorSchedule :: task :: " + answer.get(i).get(j).getDescription());
+            }
+        }
+        for (int i = 0; i < 2; i++){
+            for (int j = 0; j < expected.get(i).size(); j++) {
+                logInfo("testMakeMultiprocessorSchedule :: expected :: " + expected.get(i).get(j).getDescription());
+                logInfo("testMakeMultiprocessorSchedule :: answer :: " + answer.get(i).get(j).getDescription());
+                if (expected.get(i).get(j).isIdle()){
+                    assertEquals(true, answer.get(i).get(j).isIdle());
+                }else{
+                    assertEquals(expected.get(i).get(j).getTaskID(), answer.get(i).get(j).getTaskID());
+                }
+            }
+        }
+    }
 }

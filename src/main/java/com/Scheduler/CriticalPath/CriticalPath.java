@@ -449,6 +449,144 @@ public class CriticalPath {
     }
 
 
+
+
+    private float findIdleTime(List<Float> workTimes) {
+        float first = Float.MAX_VALUE;
+        float second = first;
+        for (int i = 0; i < workTimes.size(); i++){
+            if (first > workTimes.get(i)){
+                second = first;
+                first = workTimes.get(i);
+            }
+        }
+        return second;
+    }
+
+    private float findStepTime(List<Float> workTimes) {
+        float minT = Float.MAX_VALUE;
+        for (int i = 0; i < workTimes.size(); i++){
+            if (minT > workTimes.get(i)){
+                minT = workTimes.get(i);
+            }
+        }
+        return minT;
+    }
+
+    private UUID findAvailableTask(List<ITask> orderedTask, Map<UUID, Set<UUID>> dependencyMap){
+        UUID currID;
+        for (int i = 0; i < orderedTask.size(); i++){
+            currID = orderedTask.get(i).getTaskID();
+            //if the task is not processing/processed and it has no dependencies:
+            if (dependencyMap.get(currID) != null && dependencyMap.get(currID).size() == 0){
+                return currID;
+            }
+        }
+        //if no available tasks exist, return null
+        return null;
+    }
+
+    protected List <List <ITask>> makeMultiprocessorSchedule(List<ITask> orderedTask,  int numProcessors){
+
+        List < List <ITask>> schedule = new ArrayList<>(numProcessors);
+        //default cases
+        if (numProcessors < 1){
+            return null;
+        }else if (numProcessors == 1){
+            schedule.set(0, orderedTask);
+            return schedule;
+        }
+
+        List <Float> workTime = new ArrayList<>(numProcessors);
+
+        //set up workTimes
+        for (int i = 0; i < numProcessors; i++){
+            workTime.add(0f);
+        }
+        //set up schedule
+        for (int i = 0; i < numProcessors; i++){
+            schedule.add(new ArrayList<>());
+        }
+
+        //create HashMap: Task -> dependencies
+        Map<UUID, Set<UUID>> dependencyMap = new HashMap<>();
+        UUID currID;
+        for (int i = 0; i < orderedTask.size(); i++){
+            currID = orderedTask.get(i).getTaskID();
+            List<UUID> deps = orderedTask.get(i).getDependencies();
+            dependencyMap.put(currID, new HashSet<>());
+            for (int j = 0; j < deps.size(); j++){
+                dependencyMap.get(currID).add(deps.get(j));
+            }
+        }
+
+        float currTime = 0;
+        float minTime;
+        while (dependencyMap.size() > 0){
+            //update all dependencies
+            for (int i = 0; i < numProcessors; i++){
+                //check if processor is available
+                if (currTime >= workTime.get(i)){
+                    //update hashMap with previous task completed
+                    //if the last task was a task and not an idle
+                    if(schedule.get(i).size() != 0 && schedule.get(i).get(schedule.get(i).size() - 1).isIdle() == false){
+                        //remove the task from all dependencies
+                        UUID tempID = schedule.get(i).get(schedule.get(i).size() - 1).getTaskID();
+                        for (Set<UUID> task : dependencyMap.values()) {
+                            task.remove(tempID);
+                        }
+                    }
+                }
+            }
+
+            //find an available task
+            currID = this.findAvailableTask(orderedTask, dependencyMap);
+
+            if (currID == null){
+                //find the time to wait (next lowest workTime)
+                minTime = this.findIdleTime(workTime);
+                //add a delay, find the lowest workTime and add the delay to that processor
+                ITask tempTask = Task.idleTask(minTime);
+                float tempMin = Float.MAX_VALUE;
+                int tempIndex = -1;
+                for (int i = 0; i < numProcessors; i++){
+                    if (tempMin > workTime.get(i)){
+                        tempMin = workTime.get(i);
+                        tempIndex = i;
+                    }
+                }
+                schedule.get(tempIndex).add(tempTask);
+                workTime.set(tempIndex, workTime.get(tempIndex) + minTime);
+
+            }else{
+                //find the processor with the lowest work Time
+                int tempIndex = -1;
+                float tempMin = Float.MAX_VALUE;
+                for (int i = 0; i < numProcessors; i++){
+                    if (tempMin > workTime.get(i)){
+                        tempMin = workTime.get(i);
+                        tempIndex = i;
+                    }
+                }
+                //assign the available task to that processor
+                ITask tmpTask = null;
+                for (ITask task : orderedTask){
+                    if (task.getTaskID().equals(currID)){
+                        tmpTask = task;
+                    }
+                }
+                logInfo("makeMultiprocessorSchedule :: Assigning Task: " + tmpTask.getDescription() + " to Processor" + tempIndex);
+                schedule.get(tempIndex).add(tmpTask);
+                workTime.set(tempIndex, workTime.get(tempIndex) + tmpTask.getTime());
+                dependencyMap.remove(currID);
+            }
+            //get the current time:
+            currTime = this.findStepTime(workTime);
+        }
+
+        return schedule;
+    }
+
     protected Pair<Double, List<ITask>> maximumPathDPOLD(Graph<ITask, Edge> graph, ITask source, ITask sink) {
         if (source.equals(sink)) {
             logInfo("maximumPathDP :: base case");
