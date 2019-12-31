@@ -13,8 +13,18 @@ public class Task implements ITask {
     private float _time = 0.0f;
     private boolean sink = false;
     private boolean source = false;
-
+    private boolean idle = false;
     // private constructors
+
+    /**
+     * Constructor for {@link Task} that creates an Idle task.
+     * @param isIdle
+     */
+    private Task(float time, boolean isIdle){
+        super();
+        this.modifyTime(time);
+        this.setIdle(isIdle);
+    }
 
     /**
      * Default constructor for {@link Task}
@@ -50,6 +60,17 @@ public class Task implements ITask {
         for (UUID dep : deps) {
             this.dependencies.add(dep);
         }
+    }
+
+
+
+    /**
+     * Static factory that creates a new Idle Task
+     * @param time
+     * @return {@link Task}
+     */
+    public static Task idleTask(float time){
+        return new Task(time, true);
     }
 
     /**
@@ -133,6 +154,8 @@ public class Task implements ITask {
             this.source = true;
         }
     }
+    @Override
+    public void setIdle(boolean idle) { this.idle = idle; }
 
     @Override
     public boolean isSink() {
@@ -143,4 +166,7 @@ public class Task implements ITask {
     public boolean isSource() {
         return this.source;
     }
+
+    @Override
+    public boolean isIdle() { return this.idle; }
 }

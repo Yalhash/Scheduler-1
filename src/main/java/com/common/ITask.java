@@ -46,6 +46,8 @@ public interface ITask {
     public void modifyTime(float time);
 
     public void setSink(boolean sink);
+    public void setIdle(boolean idle);
     public boolean isSink();
     public boolean isSource();
+    public boolean isIdle();
 }
