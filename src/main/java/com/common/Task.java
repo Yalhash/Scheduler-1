@@ -70,7 +70,9 @@ public class Task implements ITask {
      * @return {@link Task}
      */
     public static Task idleTask(float time){
-        return new Task(time, true);
+        Task idleTask = new Task(time, true);
+        idleTask.modifyDescription("idle");
+        return idleTask;
     }
 
     /**

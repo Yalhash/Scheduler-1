@@ -11,6 +11,7 @@ import com.common.Task;
 
 import org.jgrapht.Graph;
 import org.jgrapht.GraphPath;
+import org.jgrapht.Graphs;
 import org.jgrapht.alg.util.Pair;
 import org.jgrapht.graph.SimpleDirectedWeightedGraph;
 import org.jgrapht.io.ComponentNameProvider;
@@ -112,12 +113,16 @@ public class CriticalPath {
      * @return
      */
     private boolean addVertex(ITask vertex) {
+        return this.addVertex(this.graph, vertex);
+    }
+
+    private boolean addVertex(Graph<ITask, Edge> graph, ITask vertex) {
         // this.graph.vertexSet().contains(vertex);
-        ITask exists = this.graph.vertexSet().stream().filter(task -> task.getTaskID().equals(vertex.getTaskID())).findAny().orElse(null);
+        ITask exists = graph.vertexSet().stream().filter(task -> task.getTaskID().equals(vertex.getTaskID())).findAny().orElse(null);
         if (exists != null) {
             return false;
         }
-        return this.graph.addVertex(vertex);
+        return graph.addVertex(vertex);
     }
 
     /**
@@ -127,12 +132,22 @@ public class CriticalPath {
      * @return {boolean}
      */
     private boolean addEdge(ITask task1, ITask task2) {
+        return this.addEdge(this.graph, task1, task2);
+    }
 
+    private boolean addEdge(Graph<ITask, Edge> graph, ITask task1, ITask task2) {
         logInfo("adding edge :: " + task1.getDescription() + "->" + task2.getDescription());
         // create the edge and assign the weight to be the first task's time
-        Edge edge = this.graph.addEdge(task1, task2);
-        this.graph.setEdgeWeight(edge, task1.getTime());
-        return true;
+        logInfo("addEdge :: firstTask " + (task1 == null));
+        logInfo("addEdge :: secondTask " + (task2 == null));
+        Edge edge = graph.addEdge(task1, task2);
+        logInfo("addEdge :: edge weight :: " + task1.getTime());
+        logInfo("addEdge :: edge null? " + (edge == null));
+        if (edge != null) {
+            graph.setEdgeWeight(edge, task1.getTime());
+            return true;
+        }
+        return false;
     }
 
 
@@ -220,12 +235,12 @@ public class CriticalPath {
             logInfo(target.getDescription());
             if (target != null) {
                 toRemove.add(edge);
-                this.addEdge(source, target);
+                this.addEdge(graph, source, target);
             }
         }
 
-        for (Edge edge: toRemove) this.graph.removeEdge(edge);
-        this.graph.removeVertex(node);
+        for (Edge edge: toRemove) graph.removeEdge(edge);
+        graph.removeVertex(node);
     }
 
 
@@ -347,12 +362,32 @@ public class CriticalPath {
         for(Edge edge : edges) graph.removeEdge(edge);
     }
 
+    public void cloneGraph(Graph<ITask, Edge> destinationGraph, Graph<ITask, Edge> sourceGraph) {
+        Set<Edge> sEdges = sourceGraph.edgeSet();
+        ITask source;
+        ITask target;
+        for (Edge e : sEdges) {
+            logInfo("cloneGraph :: edge :: "+ e.toString());
+            source = sourceGraph.getEdgeSource(e);
+            target = sourceGraph.getEdgeTarget(e);
+            if (source != null && target != null) {
+                this.addVertex(destinationGraph, source);
+                this.addVertex(destinationGraph, target);
+                this.addEdge(destinationGraph, source, target);
+            }
+        }
+        logInfo("cloned graph :: ");
+        this.createGraphVis(destinationGraph);
+    }
+
     public List<ITask> getSchedule() {
-        Graph<ITask, Edge> graph = this.graph;
+        Graph<ITask, Edge> graph = this.newGraph();
+        this.cloneGraph(graph, this.graph);
         List<ITask> schedule = new ArrayList<>();
         ITask source = this.getSourceTask(graph, true);
         ITask sink = this.getSourceTask(graph, false);
         while (graph.vertexSet().size() > 2) {
+            logInfo("getSchedule :: graph size :: " + graph.vertexSet().size());
             // check if second is not sink
             // List<ITask> criticalPath = this.findCriticalPathTMP(graph);
             Pair<Double, List<ITask>> pair = this.maximumPathDP(graph, source, sink);
@@ -361,12 +396,16 @@ public class CriticalPath {
             // the length of this should always be at least 2 (source, sink)
             for (ITask task : criticalPath) logInfo("getSchedule :: list :: " + task.getDescription());
             ITask toRemove = criticalPath.get(1);
+            logInfo("getSchedule :: toRemove :: " + toRemove.getDescription());
             if (!toRemove.isSink() && !toRemove.isSource()) {
                 this.removeNoDepNode(graph, source, toRemove);
                 schedule.add(toRemove);
             }
             this.removeSourceSinkEdges(graph);
         }
+
+        logInfo("after schedule");
+        this.createGraphVis(graph);
 
         return schedule;
     }
@@ -398,43 +437,44 @@ public class CriticalPath {
 
     /**
      * This method recursively finds the longest path while keeping track of all previous longest paths it has visited
-     * @param graph
+     * @param graph2
      * @param source
      * @param sink
      * @param nodeMap
      * @return
      */
-    private Pair<Double, List<ITask>> maximumPathDP(Graph<ITask, Edge> graph, ITask source, ITask sink, HashMap<ITask, Pair<Double, List<ITask>>> nodeMap) {
+    private Pair<Double, List<ITask>> maximumPathDP(Graph<ITask, Edge> graph2, ITask source, ITask sink, HashMap<ITask, Pair<Double, List<ITask>>> nodeMap) {
         if (source.equals(sink)) {
             logInfo("maximumPathDP :: base case");
             List<ITask> baseAnswer = new ArrayList<>();
             baseAnswer.add(source);
             return new Pair<Double,List<ITask>>(0.0, baseAnswer);
         }
-        Set<Edge> incoming = graph.incomingEdgesOf(sink);
+        Set<Edge> incoming = graph2.incomingEdgesOf(sink);
 
         double maxDist = 0;
         List<ITask> currPath = null;
         Pair<Double, List<ITask>> tmp;
         for (Edge edge : incoming) {
-            logInfo("maximumPathDP :: Analyzing edge :: " + graph.getEdgeSource(edge).getDescription() + " -> " + graph.getEdgeTarget(edge).getDescription());
-            ITask intermediateSource = graph.getEdgeSource(edge);
-            if (nodeMap.containsKey(intermediateSource)){
+            logInfo("maximumPathDP :: Analyzing edge :: " + graph2.getEdgeSource(edge).getDescription() + " -> " + graph2.getEdgeTarget(edge).getDescription());
+            ITask intermediateSource = graph2.getEdgeSource(edge);
+            if (nodeMap.containsKey(intermediateSource)) {
                 tmp = nodeMap.get(intermediateSource);
-            }else{
-                tmp = maximumPathDP(graph, source, intermediateSource, nodeMap);
-                nodeMap.put(intermediateSource, tmp);
+            } else {
+                tmp = maximumPathDP(graph2, source, intermediateSource, nodeMap);
             }
-            if (graph.getEdgeWeight(edge) == 0.0) {
+            if (graph2.getEdgeWeight(edge) == 0.0) {
                 currPath = tmp.getSecond();
-            } else if (tmp.getFirst() + graph.getEdgeWeight(edge) > maxDist) {
-                maxDist = tmp.getFirst() + graph.getEdgeWeight(edge);
+            } else if (tmp.getFirst() + graph2.getEdgeWeight(edge) > maxDist) {
+                maxDist = tmp.getFirst() + graph2.getEdgeWeight(edge);
                 currPath = tmp.getSecond();
             }
         }
 
+        logInfo("maximumPathDP :: currPath :: " + (currPath == null));
         currPath.add(sink);
         Pair<Double, List<ITask>> pair = new Pair<Double,List<ITask>>(maxDist, currPath);
+        nodeMap.put(sink, pair);
         return pair;
 
     }
@@ -454,8 +494,8 @@ public class CriticalPath {
     private float findIdleTime(List<Float> workTimes) {
         float first = Float.MAX_VALUE;
         float second = first;
-        for (int i = 0; i < workTimes.size(); i++){
-            if (first > workTimes.get(i)){
+        for (int i = 0; i < workTimes.size(); i++) {
+            if (first > workTimes.get(i)) {
                 second = first;
                 first = workTimes.get(i);
             }
@@ -465,20 +505,20 @@ public class CriticalPath {
 
     private float findStepTime(List<Float> workTimes) {
         float minT = Float.MAX_VALUE;
-        for (int i = 0; i < workTimes.size(); i++){
-            if (minT > workTimes.get(i)){
+        for (int i = 0; i < workTimes.size(); i++) {
+            if (minT > workTimes.get(i)) {
                 minT = workTimes.get(i);
             }
         }
         return minT;
     }
 
-    private UUID findAvailableTask(List<ITask> orderedTask, Map<UUID, Set<UUID>> dependencyMap){
+    private UUID findAvailableTask(List<ITask> orderedTask, Map<UUID, Set<UUID>> dependencyMap) {
         UUID currID;
-        for (int i = 0; i < orderedTask.size(); i++){
+        for (int i = 0; i < orderedTask.size(); i++) {
             currID = orderedTask.get(i).getTaskID();
             //if the task is not processing/processed and it has no dependencies:
-            if (dependencyMap.get(currID) != null && dependencyMap.get(currID).size() == 0){
+            if (dependencyMap.get(currID) != null && dependencyMap.get(currID).size() == 0) {
                 return currID;
             }
         }
@@ -486,13 +526,13 @@ public class CriticalPath {
         return null;
     }
 
-    protected List <List <ITask>> makeMultiprocessorSchedule(List<ITask> orderedTask,  int numProcessors){
+    protected List <List <ITask>> makeMultiprocessorSchedule(List<ITask> orderedTask,  int numProcessors) {
 
         List < List <ITask>> schedule = new ArrayList<>(numProcessors);
         //default cases
-        if (numProcessors < 1){
+        if (numProcessors < 1) {
             return null;
-        }else if (numProcessors == 1){
+        } else if (numProcessors == 1) {
             schedule.set(0, orderedTask);
             return schedule;
         }
@@ -500,36 +540,36 @@ public class CriticalPath {
         List <Float> workTime = new ArrayList<>(numProcessors);
 
         //set up workTimes
-        for (int i = 0; i < numProcessors; i++){
+        for (int i = 0; i < numProcessors; i++) {
             workTime.add(0f);
         }
         //set up schedule
-        for (int i = 0; i < numProcessors; i++){
+        for (int i = 0; i < numProcessors; i++) {
             schedule.add(new ArrayList<>());
         }
 
         //create HashMap: Task -> dependencies
         Map<UUID, Set<UUID>> dependencyMap = new HashMap<>();
         UUID currID;
-        for (int i = 0; i < orderedTask.size(); i++){
+        for (int i = 0; i < orderedTask.size(); i++) {
             currID = orderedTask.get(i).getTaskID();
             List<UUID> deps = orderedTask.get(i).getDependencies();
             dependencyMap.put(currID, new HashSet<>());
-            for (int j = 0; j < deps.size(); j++){
+            for (int j = 0; j < deps.size(); j++) {
                 dependencyMap.get(currID).add(deps.get(j));
             }
         }
 
         float currTime = 0;
         float minTime;
-        while (dependencyMap.size() > 0){
+        while (dependencyMap.size() > 0) {
             //update all dependencies
-            for (int i = 0; i < numProcessors; i++){
+            for (int i = 0; i < numProcessors; i++) {
                 //check if processor is available
-                if (currTime >= workTime.get(i)){
+                if (currTime >= workTime.get(i)) {
                     //update hashMap with previous task completed
                     //if the last task was a task and not an idle
-                    if(schedule.get(i).size() != 0 && schedule.get(i).get(schedule.get(i).size() - 1).isIdle() == false){
+                    if(schedule.get(i).size() != 0 && schedule.get(i).get(schedule.get(i).size() - 1).isIdle() == false) {
                         //remove the task from all dependencies
                         UUID tempID = schedule.get(i).get(schedule.get(i).size() - 1).getTaskID();
                         for (Set<UUID> task : dependencyMap.values()) {
@@ -542,15 +582,15 @@ public class CriticalPath {
             //find an available task
             currID = this.findAvailableTask(orderedTask, dependencyMap);
 
-            if (currID == null){
+            if (currID == null) {
                 //find the time to wait (next lowest workTime)
                 minTime = this.findIdleTime(workTime);
                 //add a delay, find the lowest workTime and add the delay to that processor
                 ITask tempTask = Task.idleTask(minTime);
                 float tempMin = Float.MAX_VALUE;
                 int tempIndex = -1;
-                for (int i = 0; i < numProcessors; i++){
-                    if (tempMin > workTime.get(i)){
+                for (int i = 0; i < numProcessors; i++) {
+                    if (tempMin > workTime.get(i)) {
                         tempMin = workTime.get(i);
                         tempIndex = i;
                     }
@@ -558,20 +598,20 @@ public class CriticalPath {
                 schedule.get(tempIndex).add(tempTask);
                 workTime.set(tempIndex, workTime.get(tempIndex) + minTime);
 
-            }else{
+            } else {
                 //find the processor with the lowest work Time
                 int tempIndex = -1;
                 float tempMin = Float.MAX_VALUE;
-                for (int i = 0; i < numProcessors; i++){
-                    if (tempMin > workTime.get(i)){
+                for (int i = 0; i < numProcessors; i++) {
+                    if (tempMin > workTime.get(i)) {
                         tempMin = workTime.get(i);
                         tempIndex = i;
                     }
                 }
                 //assign the available task to that processor
                 ITask tmpTask = null;
-                for (ITask task : orderedTask){
-                    if (task.getTaskID().equals(currID)){
+                for (ITask task : orderedTask) {
+                    if (task.getTaskID().equals(currID)) {
                         tmpTask = task;
                     }
                 }
