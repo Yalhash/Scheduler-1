@@ -17,6 +17,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static com.common.Utils.logInfo;
+import static com.common.GraphUtils.createGraphVis;
+import static com.common.GraphUtils.getSourceTask;
+import static com.common.GraphUtils.getMaximumEdgeWeight;
 
 public class CriticalPathTest {
 
@@ -76,29 +79,29 @@ public class CriticalPathTest {
         int fourthDegree = critPath.calcDegree(tasks.get(3));
         assertEquals(2, fourthDegree);
         Graph<ITask, Edge> graph = critPath.getGraph();
-        critPath.createGraphVis(graph);
+        createGraphVis(graph);
     }
 
     @Test public void testRemoveNode() {
         logInfo("testRemoveNode");
         ITask taskToRemove = this.tasks.get(0);
         Graph<ITask, Edge> graph = critPath.getGraph();
-        ITask source = critPath.getSourceTask(graph, true);
+        ITask source = getSourceTask(graph, true);
         this.critPath.removeNoDepNode(graph, source, taskToRemove);
-        this.critPath.createGraphVis(graph);
+        createGraphVis(graph);
     }
 
     @Test public void testGetMaxEdgeWeight() {
         Graph<ITask, Edge> graph = critPath.getGraph();
-        double maxEdgeWeight = critPath.getMaximumEdgeWeight(graph);
+        double maxEdgeWeight = getMaximumEdgeWeight(graph);
         assertEquals(6, maxEdgeWeight, 0.1d);
     }
 
     @Test public void testFindCriticalPath() {
         logInfo("testFindCriticalPath");
         Graph<ITask, Edge> graph = critPath.getGraph();
-        ITask source = critPath.getSourceTask(graph, true);
-        ITask sink = critPath.getSourceTask(graph, false);
+        ITask source = getSourceTask(graph, true);
+        ITask sink = getSourceTask(graph, false);
         List<ITask> shortest = this.critPath.maximumPathDP(graph, source, sink).getSecond();
         List<ITask> expected = new ArrayList<>();
         List<String> sExp = new ArrayList<>();

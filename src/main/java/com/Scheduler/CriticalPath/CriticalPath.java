@@ -1,7 +1,5 @@
 package com.Scheduler.CriticalPath;
 
-import java.io.StringWriter;
-import java.io.Writer;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -11,24 +9,25 @@ import com.common.Task;
 
 import org.jgrapht.Graph;
 import org.jgrapht.GraphPath;
-import org.jgrapht.Graphs;
 import org.jgrapht.alg.util.Pair;
-import org.jgrapht.graph.SimpleDirectedWeightedGraph;
-import org.jgrapht.io.ComponentNameProvider;
-import org.jgrapht.io.DOTExporter;
-import org.jgrapht.io.ExportException;
-import org.jgrapht.io.GraphExporter;
 import org.jgrapht.traverse.DepthFirstIterator;
 import org.jgrapht.alg.shortestpath.AllDirectedPaths;
-import org.jgrapht.alg.shortestpath.DijkstraShortestPath;
 
 import static com.common.Utils.logInfo;
+import static com.common.GraphUtils.createGraphVis;
+import static com.common.GraphUtils.addVertexToGraph;
+import static com.common.GraphUtils.addEdgeToGraph;
+import static com.common.GraphUtils.DFS;
+import static com.common.GraphUtils.getSourceTask;
+import static com.common.GraphUtils.cloneGraph;
+import static com.common.GraphUtils.removeSourceSinkEdges;
+import static com.common.GraphUtils.newGraph;
 
 public class CriticalPath {
 
     private List<ITask> tasks;
     // The underlying graph structure of the class
-    private Graph<ITask, Edge> graph = this.newGraph();
+    private Graph<ITask, Edge> graph = newGraph();
 
 
     /** Primary Constructor */
@@ -63,43 +62,8 @@ public class CriticalPath {
     }
 
 
-    /** Creates a .dot language representation of the current graph */
-    protected void createGraphVis(Graph<ITask, Edge> graph) {
-        if (graph != null) {
 
-            ComponentNameProvider<ITask> vertexIDProvider = new ComponentNameProvider<ITask>() {
-                @Override
-                public String getName(ITask component) {
-                    return component.getDescription();
-                }
-            };
 
-            ComponentNameProvider<ITask> labelIDProvider = new ComponentNameProvider<ITask>() {
-                @Override
-                public String getName(ITask component) {
-                    return component.getDescription();
-                }
-            };
-
-            GraphExporter<ITask, Edge> exporter = new DOTExporter<>(vertexIDProvider, labelIDProvider, null);
-            Writer writer = new StringWriter();
-            try {
-                exporter.exportGraph(graph, writer);
-                logInfo("\n" + writer.toString());
-            } catch (ExportException e) {
-                logInfo("ExportException :: " + e.toString());
-            }
-        }
-    }
-    /**
-     * Creates a new {@link com.google.common.graph.Graph} with vertices
-     * that are of type {@link ITask}
-     * @return Graph<ITask, DefaultEdge>
-     */
-    private Graph<ITask, Edge> newGraph() {
-        return new SimpleDirectedWeightedGraph<>(Edge.class);
-
-    }
 
     private ITask getTaskofUUID(UUID id) {
         return this.graph.vertexSet().stream().filter(task -> task.getTaskID().equals(id)).findAny().orElse(null);
@@ -113,17 +77,10 @@ public class CriticalPath {
      * @return
      */
     private boolean addVertex(ITask vertex) {
-        return this.addVertex(this.graph, vertex);
+        return addVertexToGraph(this.graph, vertex);
     }
 
-    private boolean addVertex(Graph<ITask, Edge> graph, ITask vertex) {
-        // this.graph.vertexSet().contains(vertex);
-        ITask exists = graph.vertexSet().stream().filter(task -> task.getTaskID().equals(vertex.getTaskID())).findAny().orElse(null);
-        if (exists != null) {
-            return false;
-        }
-        return graph.addVertex(vertex);
-    }
+
 
     /**
      * This private method returns a boolean if an edge is successfully added
@@ -132,23 +89,10 @@ public class CriticalPath {
      * @return {boolean}
      */
     private boolean addEdge(ITask task1, ITask task2) {
-        return this.addEdge(this.graph, task1, task2);
+        return addEdgeToGraph(this.graph, task1, task2);
     }
 
-    private boolean addEdge(Graph<ITask, Edge> graph, ITask task1, ITask task2) {
-        logInfo("adding edge :: " + task1.getDescription() + "->" + task2.getDescription());
-        // create the edge and assign the weight to be the first task's time
-        logInfo("addEdge :: firstTask " + (task1 == null));
-        logInfo("addEdge :: secondTask " + (task2 == null));
-        Edge edge = graph.addEdge(task1, task2);
-        logInfo("addEdge :: edge weight :: " + task1.getTime());
-        logInfo("addEdge :: edge null? " + (edge == null));
-        if (edge != null) {
-            graph.setEdgeWeight(edge, task1.getTime());
-            return true;
-        }
-        return false;
-    }
+
 
 
     /**
@@ -235,7 +179,7 @@ public class CriticalPath {
             logInfo(target.getDescription());
             if (target != null) {
                 toRemove.add(edge);
-                this.addEdge(graph, source, target);
+                addEdgeToGraph(graph, source, target);
             }
         }
 
@@ -259,7 +203,7 @@ public class CriticalPath {
         this.tasks = tasks;
         // if there is an already defined graph, reset it
         if (!this.graph.vertexSet().isEmpty()) {
-            this.graph = this.newGraph();
+            this.graph = newGraph();
         }
         // set the vertices and calcDegree
         List<Pair<Integer, ITask>> pairs = new ArrayList<>();
@@ -302,10 +246,7 @@ public class CriticalPath {
         List<ITask> noDeps = this.getTasksNoDeps(this.graph.vertexSet());
         this.connectSource(noDeps, source);
         this.recurseAndConnectSink(noDeps, sink);
-        // logInfo("Graph so far :: " + this.graph);
-        // this.rescaleWeight(this.graph);
-        // for (ITask start : noDeps) this.DFS(this.graph, start);
-        this.DFS(this.graph, source);
+        DFS(this.graph, source);
 
     }
 
@@ -326,13 +267,7 @@ public class CriticalPath {
         }
     }
 
-    /**
-     * Returns the source vertex of the graph. This method is for testing purposes.
-     * @return {@link ITask}
-     */
-    protected ITask getSourceTask(Graph<ITask, Edge> graph, boolean source) {
-        return graph.vertexSet().stream().filter(task -> source ? task.isSource(): task.isSink()).findFirst().orElse(null);
-    }
+
 
     private void connectSource(List<ITask> noDeps, ITask source) {
         logInfo("connect source");
@@ -350,42 +285,14 @@ public class CriticalPath {
         this.fromArrayofTasks(tasks);
     }
 
-    /**
-     * Removes all edges that directly connect source and sink (source -> sink)
-     * @param graph
-     */
-    private void removeSourceSinkEdges(Graph<ITask, Edge> graph) {
-        ITask source = this.getSourceTask(graph, true);
-        ITask sink = this.getSourceTask(graph, false);
-        Set<Edge> edges = graph.getAllEdges(source, sink);
 
-        for(Edge edge : edges) graph.removeEdge(edge);
-    }
-
-    public void cloneGraph(Graph<ITask, Edge> destinationGraph, Graph<ITask, Edge> sourceGraph) {
-        Set<Edge> sEdges = sourceGraph.edgeSet();
-        ITask source;
-        ITask target;
-        for (Edge e : sEdges) {
-            logInfo("cloneGraph :: edge :: "+ e.toString());
-            source = sourceGraph.getEdgeSource(e);
-            target = sourceGraph.getEdgeTarget(e);
-            if (source != null && target != null) {
-                this.addVertex(destinationGraph, source);
-                this.addVertex(destinationGraph, target);
-                this.addEdge(destinationGraph, source, target);
-            }
-        }
-        logInfo("cloned graph :: ");
-        this.createGraphVis(destinationGraph);
-    }
 
     public List<ITask> getSchedule() {
-        Graph<ITask, Edge> graph = this.newGraph();
-        this.cloneGraph(graph, this.graph);
+        Graph<ITask, Edge> graph = newGraph();
+        cloneGraph(graph, this.graph);
         List<ITask> schedule = new ArrayList<>();
-        ITask source = this.getSourceTask(graph, true);
-        ITask sink = this.getSourceTask(graph, false);
+        ITask source = getSourceTask(graph, true);
+        ITask sink = getSourceTask(graph, false);
         while (graph.vertexSet().size() > 2) {
             logInfo("getSchedule :: graph size :: " + graph.vertexSet().size());
             // check if second is not sink
@@ -401,11 +308,11 @@ public class CriticalPath {
                 this.removeNoDepNode(graph, source, toRemove);
                 schedule.add(toRemove);
             }
-            this.removeSourceSinkEdges(graph);
+            removeSourceSinkEdges(graph);
         }
 
         logInfo("after schedule");
-        this.createGraphVis(graph);
+        createGraphVis(graph);
 
         return schedule;
     }
@@ -419,8 +326,8 @@ public class CriticalPath {
      * @return
      */
     protected List<ITask> findCriticalPathTMP(Graph<ITask, Edge> graph) {
-        ITask source = this.getSourceTask(graph, true);
-        ITask sink = this.getSourceTask(graph, false);
+        ITask source = getSourceTask(graph, true);
+        ITask sink = getSourceTask(graph, false);
         AllDirectedPaths<ITask, Edge> allPaths = new AllDirectedPaths<>(graph);
         List<GraphPath<ITask, Edge>> path = allPaths.getAllPaths(source, sink, true, null)
                                             .stream()
@@ -487,7 +394,6 @@ public class CriticalPath {
         HashMap<ITask, Pair<Double, List<ITask>>> nodeMap = new HashMap<>();
         return maximumPathDP(graph, source, sink, nodeMap);
     }
-
 
 
 
@@ -660,75 +566,4 @@ public class CriticalPath {
         return pair;
 
     }
-
-    /**
-     * TODO implement criticalPath algorithm
-     * @param graph
-     * @param pathGraph
-     * @return {@link Graph<ITask, DefaultEdge>}
-     */
-    protected List<ITask> findCriticalPath(Graph<ITask, Edge> graph) {
-        // get all source tasks
-        // List<ITask> sources = this.getTasksNoDeps(graph.vertexSet());
-        logInfo("findCriticalPath :: ");
-        DijkstraShortestPath<ITask, Edge> shortestPath = new DijkstraShortestPath(graph);
-        ITask source = this.getSourceTask(graph, true);
-        ITask sink = this.getSourceTask(graph, false);
-        List<ITask> shortestPathGraph = shortestPath.getPath(source, sink).getVertexList();
-        for (ITask task : shortestPathGraph) logInfo("findCriticalPath :: task vertex :: " + task.getDescription());
-        return shortestPathGraph;
-    }
-
-    /**
-     * Returns the max edge weight for purpose of rescaling the edge weights.
-     * @return double
-     */
-    protected double getMaximumEdgeWeight(Graph<ITask, Edge> graph) {
-        Set<Edge> edges = graph.edgeSet();
-        List<Double> times = new ArrayList<>();
-        for (Edge edge: edges) times.add(graph.getEdgeWeight(edge));
-        return Collections.max(times);
-    }
-
-    /**
-     * This method resacles a graph such that the edge weights can be used
-     * with a shortest path algorithm to find the criticalPath (or longest path)
-     *
-     * graph does not allow for negative edges in their graph definitions as the
-     * presence of a negative edge cycle means there can be no shortest path (the shortest path will effectively be -INF).
-     * Instead, I find the largest edge weight, temporarily invert all edge weights, then add the largest edge weight to
-     * every weight. This way the largest edge weight is transformed to 0 and is set as the base weight for which the other
-     * weights are based on. So now, the largest edge weight is now the smallest (and positive!), so a shortest path algorithm
-     * (like Djiktra's) can be used to find the longest (critical) path of the graph.
-     * @param graph
-     */
-    protected void rescaleWeight(Graph<ITask, Edge> graph) {
-        float maxEdgeWeight = (float) this.getMaximumEdgeWeight(graph);
-        logInfo("rescaleWeight :: maxEdgeWeight :: " + maxEdgeWeight);
-        Set<Edge> edges = graph.edgeSet();
-        for (Edge edge: graph.edgeSet()) {
-            float tmp = (float) graph.getEdgeWeight(edge);
-            float negate = -tmp;
-            float newWeight = maxEdgeWeight + negate;
-            graph.setEdgeWeight(edge, newWeight);
-        }
-    }
-
-    private void DFS(Graph<ITask, Edge> graph, ITask start) {
-        Iterator<ITask> iterator = new DepthFirstIterator<>(graph, start);
-        ITask prev = null;
-        ITask next = start;
-        while (iterator.hasNext()) {
-            prev = next;
-            next = iterator.next();
-            logInfo("DFS :: " + next.getDescription());
-            logInfo("DFS :: prev -> next :: " + prev.getDescription() + "->" + next.getDescription());
-            if (prev != null && !prev.isSink() && prev != next) {
-                Edge edge = graph.getEdge(prev, next);
-                logInfo("DFS :: Edge weight :: " + graph.getEdgeWeight(edge));
-            }
-        }
-        logInfo("DFS end :: " + next.getDescription());
-    }
-
 }
