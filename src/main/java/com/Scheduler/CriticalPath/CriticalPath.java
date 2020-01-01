@@ -396,15 +396,6 @@ public class CriticalPath {
     }
 
 
-<<<<<<< HEAD
-    /**
-     * Helper function for makeMultiprocessorSchedule, finds the time to idle before the next task
-     * @param workTimes
-     * @return
-     */
-=======
-
->>>>>>> upstream/master
     private float findIdleTime(List<Float> workTimes) {
         // TODO: test if having 2 processors delaying at the same time still works with the main function
         float first = Float.MAX_VALUE;
@@ -433,17 +424,7 @@ public class CriticalPath {
         return minT;
     }
 
-<<<<<<< HEAD
-    /**
-     * Helper function for makeMultiprocessorSchedule, finds an available task based on priority and dependencies
-     * @param orderedTask
-     * @param dependencyMap
-     * @return
-     */
-    private UUID findAvailableTask(List<ITask> orderedTask, Map<UUID, Set<UUID>> dependencyMap){
-=======
     private UUID findAvailableTask(List<ITask> orderedTask, Map<UUID, Set<UUID>> dependencyMap) {
->>>>>>> upstream/master
         UUID currID;
         for (int i = 0; i < orderedTask.size(); i++) {
             currID = orderedTask.get(i).getTaskID();
@@ -456,17 +437,7 @@ public class CriticalPath {
         return null;
     }
 
-<<<<<<< HEAD
-    /**
-     * creates a multiprocessor schedule represented by a list for each processor
-     * @param orderedTask
-     * @param numProcessors
-     * @return
-     */
-    protected List <List <ITask>> makeMultiprocessorSchedule(List<ITask> orderedTask,  int numProcessors){
-=======
     protected List <List <ITask>> makeMultiprocessorSchedule(List<ITask> orderedTask,  int numProcessors) {
->>>>>>> upstream/master
 
         List < List <ITask>> schedule = new ArrayList<>(numProcessors);
         //default cases
