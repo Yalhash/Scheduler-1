@@ -17,6 +17,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static com.common.Utils.logInfo;
+import static com.common.GraphUtils.createGraphVis;
+import static com.common.GraphUtils.getSourceTask;
+import static com.common.GraphUtils.getMaximumEdgeWeight;
 
 public class CriticalPathTest {
 
@@ -76,42 +79,64 @@ public class CriticalPathTest {
         int fourthDegree = critPath.calcDegree(tasks.get(3));
         assertEquals(2, fourthDegree);
         Graph<ITask, Edge> graph = critPath.getGraph();
-        critPath.createGraphVis(graph);
+        createGraphVis(graph);
     }
 
     @Test public void testRemoveNode() {
         logInfo("testRemoveNode");
         ITask taskToRemove = this.tasks.get(0);
         Graph<ITask, Edge> graph = critPath.getGraph();
-        ITask source = critPath.getSourceTask(graph, true);
+        ITask source = getSourceTask(graph, true);
         this.critPath.removeNoDepNode(graph, source, taskToRemove);
-        this.critPath.createGraphVis(graph);
+        createGraphVis(graph);
     }
 
     @Test public void testGetMaxEdgeWeight() {
         Graph<ITask, Edge> graph = critPath.getGraph();
-        double maxEdgeWeight = critPath.getMaximumEdgeWeight(graph);
+        double maxEdgeWeight = getMaximumEdgeWeight(graph);
         assertEquals(6, maxEdgeWeight, 0.1d);
     }
 
     @Test public void testFindCriticalPath() {
         logInfo("testFindCriticalPath");
         Graph<ITask, Edge> graph = critPath.getGraph();
-        ITask source = critPath.getSourceTask(graph, true);
-        ITask sink = critPath.getSourceTask(graph, false);
-        List<ITask> shortest = this.critPath.findCriticalPath(graph);
+        ITask source = getSourceTask(graph, true);
+        ITask sink = getSourceTask(graph, false);
+        List<ITask> shortest = this.critPath.maximumPathDP(graph, source, sink).getSecond();
         List<ITask> expected = new ArrayList<>();
+        List<String> sExp = new ArrayList<>();
+        List<String> sRes = new ArrayList<>();
         expected.add(source);
-        expected.add(tasks.get(2));
+        expected.add(tasks.get(0));
+        expected.add(tasks.get(1));
+        expected.add(tasks.get(3));
         expected.add(sink);
+        for (ITask task: expected) {
+            sExp.add(task.getDescription());
+        }
+        for (ITask task: shortest) {
+            sRes.add(task.getDescription());
+        }
+        logInfo("testFindCriticalPath :: expected :: " + String.join("->", sExp));
+        logInfo("testFindCriticalPath :: result :: " + String.join("->", sRes));
+        assertEquals(expected, shortest);
     }
 
     @Test public void testFindSchedule() {
         logInfo("testFindSchedule :: ");
         List<ITask> tasks = critPath.getSchedule();
-        CriticalPath newCritPath = CriticalPath.ofTasks(tasks);
-        newCritPath.createGraphVis(newCritPath.getGraph());
-        for (ITask task: tasks) logInfo("testFindSchedule :: task :: " + task.getDescription());
+        List<String> expected = new ArrayList<>();
+        List<String> result = new ArrayList<>();
+        expected.add(tasks.get(0).getDescription());
+        expected.add(tasks.get(1).getDescription());
+        expected.add(tasks.get(2).getDescription());
+        expected.add(tasks.get(3).getDescription());
+        for (ITask task: tasks) {
+            logInfo("testFindSchedule :: task :: " + task.getDescription());
+            result.add(task.getDescription());
+        }
+        logInfo("testFindSchedule :: " + String.join("->", result));
+        assertEquals(expected, result);
     }
 
     @Test public void testMakeMultiprocessorSchedule() {
@@ -126,19 +151,30 @@ public class CriticalPathTest {
         expected.get(0).add(tasks.get(2));
         expected.get(1).add(tasks.get(3));
         expected.get(1).add(Task.idleTask(2f));
-        for (int i = 0; i < answer.size(); i++){
+        int q = 1;
+        List<String> sAnswer;
+        for (List<ITask> list : answer) {
+            sAnswer = new ArrayList<>();
+            for (ITask task : list) {
+                sAnswer.add(task.getDescription());
+            }
+            logInfo("testMakeMultiprocessorSchedule :: processor " + q);
+            logInfo("testMakeMultiprocessorSchedule :: processor :: tasks " + String.join("->", sAnswer));
+            q++;
+        }
+        for (int i = 0; i < answer.size(); i++) {
             logInfo("testMakeMultiprocessorSchedule :: answer :: processor " + i);
-            for (int j = 0; j < answer.get(i).size(); j++){
+            for (int j = 0; j < answer.get(i).size(); j++) {
                 logInfo("testMakeMultiprocessorSchedule :: task :: " + answer.get(i).get(j).getDescription());
             }
         }
-        for (int i = 0; i < 2; i++){
+        for (int i = 0; i < 2; i++) {
             for (int j = 0; j < expected.get(i).size(); j++) {
                 logInfo("testMakeMultiprocessorSchedule :: expected :: " + expected.get(i).get(j).getDescription());
                 logInfo("testMakeMultiprocessorSchedule :: answer :: " + answer.get(i).get(j).getDescription());
-                if (expected.get(i).get(j).isIdle()){
+                if (expected.get(i).get(j).isIdle()) {
                     assertEquals(true, answer.get(i).get(j).isIdle());
-                }else{
+                } else {
                     assertEquals(expected.get(i).get(j).getTaskID(), answer.get(i).get(j).getTaskID());
                 }
             }
